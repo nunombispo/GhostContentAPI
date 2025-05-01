@@ -77,11 +77,11 @@ def get_ghost_api_url():
 
 def update_posts_to_paid():
     """
-    Update non-paid posts from previous years to paid status.
+    Update public posts from the current year to members-only status.
     
     This function:
-    1. Retrieves all posts that are not paid and were published before the current year
-    2. Updates each post's visibility to 'paid'
+    1. Retrieves all public posts published in the current year
+    2. Updates each post's visibility to 'members'
     3. Maintains the post's updated_at timestamp to prevent conflicts
     
     Returns:
@@ -106,20 +106,20 @@ def update_posts_to_paid():
         current_year = datetime.now().year
         start_of_current_year = f"{current_year}-01-01T00:00:00Z"
 
-        # Get posts from previous years that are not paid
+        # Get posts from current year that are public
         posts_url = f"{api_url}/posts/"
         response = requests.get(
             posts_url,
             headers=headers,
             params={
                 'limit': 'all',
-                'filter': f'visibility:-paid+published_at:<{start_of_current_year}'
+                'filter': f'visibility:public+published_at:>={start_of_current_year}'
             }
         )
         response.raise_for_status()
         posts = response.json()['posts']
 
-        logger.info(f"Found {len(posts)} posts from previous years that are not paid")
+        logger.info(f"Found {len(posts)} posts from current year that are public")
 
         # Update each post to paid status
         updated_count = 0
@@ -136,7 +136,7 @@ def update_posts_to_paid():
                 update_data = {
                     'posts': [{
                         'id': post['id'],
-                        'visibility': 'paid',
+                        'visibility': 'members',
                         'updated_at': current_post['updated_at']
                     }]
                 }
@@ -154,7 +154,7 @@ def update_posts_to_paid():
                 logger.error(f"Failed to update post {post['title']}: {str(e)}")
                 continue
 
-        logger.info(f"Successfully updated {updated_count} posts to paid status")
+        logger.info(f"Successfully updated {updated_count} posts to members status")
         return updated_count
 
     except Exception as e:

@@ -75,20 +75,41 @@ def get_ghost_api_url():
     base_url = base_url.rstrip('/')
     return f"{base_url}/ghost/api/admin"
 
-def update_posts_to_paid():
+def get_edit_url(post_id):
     """
-    Update non-paid posts from previous years to paid status.
+    Generate the Ghost admin editor URL for a specific post.
     
-    This function:
-    1. Retrieves all posts that are not paid and were published before the current year
-    2. Updates each post's visibility to 'paid'
-    3. Maintains the post's updated_at timestamp to prevent conflicts
-    
+    Args:
+        post_id (str): The ID of the post to generate the edit URL for
+        
     Returns:
-        int: Number of successfully updated posts
+        str: Complete URL to edit the post in Ghost admin
         
     Raises:
-        Exception: If any error occurs during the update process
+        ValueError: If GHOST_URL is not found in environment variables
+    """
+    base_url = os.getenv('GHOST_URL')
+    if not base_url:
+        raise ValueError("GHOST_URL not found in environment variables")
+    return f"{base_url}/ghost/#/editor/post/{post_id}/" 
+
+def search_posts(search_term):
+    """
+    Search for posts in Ghost that match the given search term in their title.
+    
+    This function:
+    1. Searches for posts with titles containing the search term
+    2. Displays detailed information about each matching post
+    3. Provides both public URL and admin edit URL for each post
+    
+    Args:
+        search_term (str): The term to search for in post titles
+        
+    Returns:
+        list: List of matching post objects from the Ghost API
+        
+    Raises:
+        Exception: If any error occurs during the search process
     """
     try:
         # Get authentication token and API URL
@@ -102,60 +123,38 @@ def update_posts_to_paid():
             'Accept-Version': 'v5.0'
         }
 
-        # Calculate the start of the current year
-        current_year = datetime.now().year
-        start_of_current_year = f"{current_year}-01-01T00:00:00Z"
-
-        # Get posts from previous years that are not paid
+        # Search for posts
         posts_url = f"{api_url}/posts/"
         response = requests.get(
             posts_url,
             headers=headers,
             params={
                 'limit': 'all',
-                'filter': f'visibility:-paid+published_at:<{start_of_current_year}'
+                'filter': f"title:~'{search_term}'"
             }
         )
         response.raise_for_status()
         posts = response.json()['posts']
 
-        logger.info(f"Found {len(posts)} posts from previous years that are not paid")
+        logger.info(f"Found {len(posts)} posts matching search term: '{search_term}'")
 
-        # Update each post to paid status
-        updated_count = 0
-        for post in posts:
-            try:
-                # Get the latest version of the post to ensure we have the current updated_at
-                post_url = f"{api_url}/posts/{post['id']}/"
-                post_response = requests.get(post_url, headers=headers)
-                post_response.raise_for_status()
-                current_post = post_response.json()['posts'][0]
+        # Display matching posts
+        if posts:
+            print("\nMatching Posts:")
+            print("-" * 50)
+            for post in posts:
+                edit_url = get_edit_url(post['id'])
+                print(f"Title: {post['title']}")
+                print(f"Published: {post['published_at']}")
+                print(f"Status: {post['status']}")
+                print(f"Visibility: {post['visibility']}")
+                print(f"URL: {post['url']}")
+                print(f"Edit URL: {edit_url}")
+                print("-" * 50)
+        else:
+            print(f"\nNo posts found matching: '{search_term}'")
 
-                # Create the update data
-                update_url = f"{api_url}/posts/{post['id']}/"
-                update_data = {
-                    'posts': [{
-                        'id': post['id'],
-                        'visibility': 'paid',
-                        'updated_at': current_post['updated_at']
-                    }]
-                }
-
-                # Update the post to paid status
-                update_response = requests.put(
-                    update_url,
-                    headers=headers,
-                    json=update_data
-                )
-                update_response.raise_for_status()
-                updated_count += 1
-                logger.info(f"Updated post: {post['title']}")
-            except Exception as e:
-                logger.error(f"Failed to update post {post['title']}: {str(e)}")
-                continue
-
-        logger.info(f"Successfully updated {updated_count} posts to paid status")
-        return updated_count
+        return posts
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -173,4 +172,10 @@ if __name__ == "__main__":
         logger.info("GHOST_ADMIN_API_KEY=your_admin_api_key")
         exit(1)
     
-    update_posts_to_paid() 
+    # Get search term from user
+    search_term = input("Enter search term: ").strip()
+    if not search_term:
+        print("Search term cannot be empty")
+        exit(1)
+    
+    search_posts(search_term) 
