@@ -2,6 +2,8 @@
 
 A collection of Python scripts for managing Ghost blog content through the Ghost Admin API.
 
+If these scripts were useful to you, consider donating to support the Developer Service Blog: https://buy.stripe.com/bIYdTrggi5lZamkdQW
+
 ## Scripts
 
 ### 1. Update Posts to Paid Status (`update_posts_to_paid.py`)
